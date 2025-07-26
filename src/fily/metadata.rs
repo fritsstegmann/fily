@@ -3,6 +3,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use mime_guess::MimeGuess;
 
+use super::path_security::construct_safe_metadata_path;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectMetadata {
     pub content_type: String,
@@ -71,12 +73,11 @@ pub async fn save_metadata(
     object: &str,
     metadata: &ObjectMetadata,
 ) -> anyhow::Result<()> {
-    let metadata_dir = storage_path.join(bucket).join(".fily-metadata");
-    tokio::fs::create_dir_all(&metadata_dir).await?;
+    // Use secure metadata path construction to prevent path injection attacks
+    let metadata_file = construct_safe_metadata_path(storage_path, bucket, object)
+        .map_err(|e| anyhow::anyhow!("Metadata path security violation: {}", e))?;
     
-    let metadata_file = metadata_dir.join(format!("{}.json", object.replace('/', "_")));
     let metadata_json = serde_json::to_string_pretty(metadata)?;
-    
     tokio::fs::write(metadata_file, metadata_json).await?;
     Ok(())
 }
@@ -86,10 +87,9 @@ pub async fn load_metadata(
     bucket: &str,
     object: &str,
 ) -> anyhow::Result<Option<ObjectMetadata>> {
-    let metadata_file = storage_path
-        .join(bucket)
-        .join(".fily-metadata")
-        .join(format!("{}.json", object.replace('/', "_")));
+    // Use secure metadata path construction to prevent path injection attacks
+    let metadata_file = construct_safe_metadata_path(storage_path, bucket, object)
+        .map_err(|e| anyhow::anyhow!("Metadata path security violation: {}", e))?;
     
     if !metadata_file.exists() {
         return Ok(None);
@@ -105,10 +105,9 @@ pub async fn delete_metadata(
     bucket: &str,
     object: &str,
 ) -> anyhow::Result<()> {
-    let metadata_file = storage_path
-        .join(bucket)
-        .join(".fily-metadata")
-        .join(format!("{}.json", object.replace('/', "_")));
+    // Use secure metadata path construction to prevent path injection attacks
+    let metadata_file = construct_safe_metadata_path(storage_path, bucket, object)
+        .map_err(|e| anyhow::anyhow!("Metadata path security violation: {}", e))?;
     
     if metadata_file.exists() {
         tokio::fs::remove_file(metadata_file).await?;

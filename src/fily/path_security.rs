@@ -128,6 +128,16 @@ pub fn sanitize_object_name(object: &str) -> Result<String, PathSecurityError> {
         ));
     }
 
+    // Check for Windows absolute paths (C:\, D:\, etc.)
+    if object.len() >= 3 && object.chars().nth(1) == Some(':') && object.chars().nth(2) == Some('\\') {
+        let first_char = object.chars().next().unwrap();
+        if first_char.is_ascii_alphabetic() {
+            return Err(PathSecurityError::InvalidObjectName(
+                "Object name cannot be a Windows absolute path".to_string(),
+            ));
+        }
+    }
+
     // Normalize path separators to forward slashes only
     let normalized = object.replace('\\', "/");
 
