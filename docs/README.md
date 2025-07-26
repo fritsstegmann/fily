@@ -10,13 +10,22 @@ This directory contains comprehensive documentation for the Fily S3-compatible f
   - Identifies critical, high, medium, and low severity issues
   - Provides detailed remediation guidance
   - Includes recent security improvements and git history analysis
-  - **Status:** Updated for v1.1 with hardcoded credentials removal
+  - **Status:** Updated for v1.3 with environment variable migration security improvements
 
 - **[PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)** - Performance analysis and optimization recommendations
   - Memory usage analysis and bottlenecks
   - Latency optimization opportunities  
   - Resource consumption patterns
   - Implementation recommendations for 40-60% performance improvements
+
+### Deployment and Operations
+
+- **[DOCKER.md](DOCKER.md)** - Comprehensive Docker deployment guide
+  - Environment variable configuration for containers
+  - Development and production Docker Compose setups
+  - Multi-tenant deployment with multiple AWS credentials
+  - Security hardening and monitoring best practices
+  - Container orchestration and scaling guidance
 
 ### S3 Compatibility Analysis
 
@@ -33,6 +42,14 @@ This directory contains comprehensive documentation for the Fily S3-compatible f
   - Storage architecture changes and data models
   - Implementation complexity analysis and timelines
   - Alternative approaches and recommendations
+  - **Status:** Updated for environment variable configuration
+
+### Documentation Management
+
+- **[CHANGELOG.md](CHANGELOG.md)** - Documentation version history and updates
+  - Tracks all documentation changes and versions
+  - Impact analysis of system changes on documentation
+  - Migration notes for configuration system changes
 
 ## How to Use This Documentation
 

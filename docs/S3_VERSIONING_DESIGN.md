@@ -135,20 +135,35 @@ pub struct Config {
 }
 ```
 
-Update `config.toml`:
-```toml
-[fily]
-location = "./data"
-port = "8333"
-address = "0.0.0.0"
-access_key_id = "your_access_key"
-secret_access_key = "your_secret_key"
-region = "us-east-1"
-
+Update environment variable configuration:
+```bash
 # Versioning configuration
-versioning_enabled = true
-max_versions_per_object = 100  # Optional limit
-auto_cleanup_old_versions = false
+export FILY_VERSIONING_ENABLED=true
+export FILY_MAX_VERSIONS_PER_OBJECT=100  # Optional limit
+export FILY_AUTO_CLEANUP_OLD_VERSIONS=false
+```
+
+Add to `src/config.rs` loader:
+```rust
+fn load_versioning_config() -> Result<VersioningConfig> {
+    let enabled = env::var("FILY_VERSIONING_ENABLED")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(false);
+    
+    let max_versions = env::var("FILY_MAX_VERSIONS_PER_OBJECT")
+        .ok()
+        .and_then(|v| v.parse().ok());
+    
+    let auto_cleanup = env::var("FILY_AUTO_CLEANUP_OLD_VERSIONS")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(false);
+    
+    Ok(VersioningConfig {
+        enabled,
+        max_versions_per_object: max_versions,
+        auto_cleanup_old_versions: auto_cleanup,
+    })
+}
 ```
 
 ### 6. Implementation Complexity Estimate
@@ -182,7 +197,7 @@ auto_cleanup_old_versions = false
 #### Low Complexity Items
 - **Configuration updates** (1-2 days)
   - Config struct modifications
-  - TOML parsing updates
+  - Environment variable parsing updates
   
 - **Basic version ID generation** (1 day)
   - UUID or timestamp-based IDs
@@ -222,7 +237,7 @@ auto_cleanup_old_versions = false
 - [ ] Design and implement version-aware storage backend
 - [ ] Create metadata management system
 - [ ] Implement version ID generation
-- [ ] Add basic versioning configuration
+- [ ] Add basic versioning configuration (environment variables)
 
 #### Phase 2: Core Operations (1-2 weeks)
 - [ ] Modify PUT object for versioning

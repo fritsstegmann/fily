@@ -1,6 +1,6 @@
 # Fily S3-Compatible Server Security Audit
 
-**Document Version:** 1.2  
+**Document Version:** 1.3  
 **Audit Date:** July 26, 2025  
 **Last Updated:** July 26, 2025  
 **Auditor:** Security Analysis  
@@ -14,7 +14,7 @@ This security audit examines the Fily S3-compatible file storage server implemen
 
 **Critical Issues:** 0 (Reduced from 2) ✅  
 **High Severity:** 0 (Reduced from 4) ✅  
-**Medium Severity:** 5 (Reduced from 6)  
+**Medium Severity:** 4 (Reduced from 6)  
 **Low Severity:** 3  
 
 **Recent Security Improvements:**
@@ -23,6 +23,7 @@ This security audit examines the Fily S3-compatible file storage server implemen
 - ✅ **Implemented path traversal protection** with comprehensive input validation (High → Resolved)
 - ✅ **Removed sensitive data from logs** to prevent information disclosure (High → Resolved)
 - ✅ **Fixed metadata file path injection** with secure path construction (High → Resolved)
+- ✅ **Migrated to environment variable configuration** eliminating config file security risks (Medium → Resolved)
 - ✅ **Eliminated pre-signed URL attack vector** by removing functionality entirely
 - ✅ **Clean git history** established to prevent credential exposure
 
@@ -257,28 +258,38 @@ error!("Authentication failed - invalid credentials");
 - Prevents access key enumeration attacks
 - Maintains security through obscurity for authentication failures
 
-### 7. Plain Text Credential Storage (MEDIUM)
+### ~~7. Plain Text Credential Storage~~ (RESOLVED)
 
-**Location:** `config-example.toml` (mitigated)  
-**CVSS Score:** 4.8 (Medium) - Downgraded from 5.8  
-**Status:** PARTIALLY MITIGATED
+**Previous Location:** `config-example.toml` (eliminated)  
+**Status:** ✅ **RESOLVED** - Fixed in commit 88e0f71  
 
-**Description:**
-AWS credentials stored in plain text configuration file.
+**Resolution Action:**
+Migrated from TOML configuration files to environment variable-based configuration system.
 
-**Mitigation:**
-- ✅ Actual `config.toml` excluded from git tracking
-- ✅ Only example template with placeholders in repository
-- ✅ Clear documentation for secure configuration
+**Applied Fix:**
+- **Complete elimination** of config files from the system
+- **Environment variable configuration** with comprehensive validation
+- **Multiple credential methods** supporting secure deployment patterns
+- **Container-native configuration** following 12-factor app principles
 
-**Remaining Impact:**
-- Local credential exposure if config file accessed
-- No protection for stored secrets at runtime
+**Security Improvements:**
+- No config files to secure or accidentally commit
+- Environment variables managed by deployment platform
+- Support for secret management systems integration
+- Improved Docker and Kubernetes deployment security
 
-**Recommendation:**
-Implement encrypted credential storage or environment variable usage.
+**Previous Impact:**
+- ~~Local credential exposure if config file accessed~~
+- ~~No protection for stored secrets at runtime~~
+- ~~Risk of accidental credential commits~~
 
-### 8. Bucket Name Validation Bypass (MEDIUM)
+**Security Benefit:**
+- Complete elimination of file-based credential storage
+- Platform-native secret management integration
+- Reduced attack surface for credential exposure
+- Enhanced container security posture
+
+### 7. Bucket Name Validation Bypass (MEDIUM)
 
 **Location:** `src/fily/create_bucket.rs:13-42`  
 **CVSS Score:** 5.1 (Medium)  
@@ -294,7 +305,7 @@ While bucket name validation exists, it's incomplete and may miss edge cases.
 **Recommendation:**
 Enhance validation with comprehensive AWS S3 bucket naming compliance.
 
-### 9. No Request Rate Limiting (MEDIUM)
+### 8. No Request Rate Limiting (MEDIUM)
 
 **Location:** Global - no rate limiting implementation  
 **CVSS Score:** 5.0 (Medium)  
@@ -311,7 +322,7 @@ No protection against brute force attacks or excessive requests.
 **Recommendation:**
 Implement rate limiting middleware for authentication attempts and general requests.
 
-### 10. Missing Security Headers (MEDIUM)
+### 9. Missing Security Headers (MEDIUM)
 
 **Location:** All HTTP responses  
 **CVSS Score:** 4.7 (Medium)  
@@ -339,15 +350,15 @@ The pre-signed URL module containing extensive debug logging of sensitive data h
 
 ## Low Severity Issues
 
-### 11. No Header Size Limits (LOW)
+### 10. No Header Size Limits (LOW)
 
 **Description:** No explicit limits on HTTP header sizes or counts.
 
-### 12. No Credential Rotation (LOW)
+### 11. No Credential Rotation (LOW)
 
 **Description:** No mechanism for credential expiration or rotation.
 
-### 13. Clock Skew Information Disclosure (LOW)
+### 12. Clock Skew Information Disclosure (LOW)
 
 **Description:** Clock skew errors may reveal server time information.
 
@@ -402,10 +413,11 @@ The encryption implementation in `src/fily/encryption/` appears secure:
    - Removed entire pre-signed URL attack vector
    - Clean git history without embedded secrets
 
-2. **Configuration Security** (Medium → Improved)
-   - Excluded actual config files from git tracking
-   - Provided secure configuration templates
-   - Clear documentation for credential management
+2. **Configuration Security** (Medium → Resolved)
+   - Complete migration to environment variable configuration
+   - Eliminated all config file security risks
+   - Support for platform-native secret management
+   - Enhanced container and cloud deployment security
 
 3. **Reduced Attack Surface**
    - Removed potentially vulnerable pre-signed URL functionality
@@ -416,17 +428,17 @@ The encryption implementation in `src/fily/encryption/` appears secure:
 
 ### Immediate (Fix within 24 hours):
 1. ✅ ~~Remove hardcoded credentials~~ **COMPLETED**
-2. Fix timing attack vulnerability
-3. Implement path traversal protection
+2. ✅ ~~Fix timing attack vulnerability~~ **COMPLETED**
+3. ✅ ~~Implement path traversal protection~~ **COMPLETED**
 
 ### High Priority (Fix within 1 week):
-1. Add request body size limits
-2. Sanitize logging output
-3. Implement path sanitization for metadata
+1. ✅ ~~Add request body size limits~~ **PARTIALLY ADDRESSED**
+2. ✅ ~~Sanitize logging output~~ **COMPLETED**
+3. ✅ ~~Implement path sanitization for metadata~~ **COMPLETED**
 
 ### Medium Priority (Fix within 1 month):
 1. Add rate limiting
-2. Implement secure credential storage
+2. ✅ ~~Implement secure credential storage~~ **COMPLETED** (Environment variables)
 3. Add security headers
 4. Enhance bucket name validation
 
@@ -471,9 +483,10 @@ The encryption implementation in `src/fily/encryption/` appears secure:
 ### ✅ Repository Security Status:
 
 1. **Clean History:** No embedded secrets in git history
-2. **Secure Configuration:** Config files properly excluded
-3. **Template Security:** Example configurations use placeholders only
+2. **Secure Configuration:** No config files - environment variable only
+3. **Template Security:** Environment variable examples with placeholders only
 4. **Secret Scanning:** No hardcoded credentials detected
+5. **Configuration Security:** Complete migration to secure environment variable system
 
 **Security Recommendation:** The repository is now **SAFE FOR OPEN SOURCE** with current security improvements.
 
@@ -487,6 +500,7 @@ Fily has made **comprehensive security improvements** by resolving all critical 
 - ✅ Path traversal vulnerabilities completely mitigated
 - ✅ Metadata file path injection attacks prevented
 - ✅ Sensitive data logging eliminated
+- ✅ Configuration security risks eliminated with environment variable migration
 - ✅ Clean git history established
 
 The server now provides a **secure S3-compatible storage solution** suitable for development, testing, and **production environments** with proper operational security controls.
