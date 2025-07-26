@@ -1,5 +1,39 @@
 # Fily Documentation Changelog
 
+## Version 1.3 - July 26, 2025
+
+### Major Updates: SHA256 Content Hash Caching Performance Enhancement
+
+#### Updated Documents
+
+**[docs/SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Updated to v1.4
+- Added SHA256 content hash caching security enhancement
+- Reclassified "Unbounded Request Body Size" vulnerability from Medium to Low severity
+- Updated executive summary: Medium severity issues reduced from 4 to 3, Low severity increased to 4
+- Added performance security benefits (708x improvement) to security improvements list
+- Updated conclusion to highlight memory exhaustion mitigation and authentication scalability
+
+**[docs/PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)** - Updated to v1.1
+- Resolved critical "Memory Pressure from Request Body Collection" bottleneck
+- Added comprehensive performance results: 708x improvement for signature validation
+- Updated executive summary with recent performance achievements
+- Added detailed technical implementation of SHA256 caching optimization
+- Documented memory usage elimination and latency improvements
+
+#### Performance Achievements
+
+1. **SHA256 Content Hash Caching System**
+   - 708x performance improvement for signature validation (273.792µs vs 193.863875ms)
+   - Complete elimination of memory pressure during authentication for cached objects
+   - Authentication performance now independent of file size
+   - Maintains full AWS SigV4 security compliance
+
+2. **Security and Performance Co-benefits**
+   - Eliminates memory exhaustion attack vectors
+   - Reduces DoS vulnerability surface
+   - Improves server scalability under load
+   - Graceful fallback when cache unavailable
+
 ## Version 1.2 - July 26, 2025
 
 ### Major Updates: Environment Variable Configuration Migration

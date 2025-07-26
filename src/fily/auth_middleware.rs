@@ -12,16 +12,18 @@ use tracing::{error, info, warn};
 
 use super::auth::{AuthError, AwsSignatureV4Validator};
 use super::s3_app_error::S3Error;
+use super::Config;
 
 #[derive(Clone)]
 pub struct AuthMiddleware<S> {
     inner: S,
     validator: Arc<AwsSignatureV4Validator>,
+    config: Arc<Config>,
 }
 
 impl<S> AuthMiddleware<S> {
-    pub fn new(inner: S, validator: Arc<AwsSignatureV4Validator>) -> Self {
-        Self { inner, validator }
+    pub fn new(inner: S, validator: Arc<AwsSignatureV4Validator>, config: Arc<Config>) -> Self {
+        Self { inner, validator, config }
     }
 }
 
@@ -42,6 +44,7 @@ where
 
     fn call(&mut self, req: Request) -> Self::Future {
         let validator = self.validator.clone();
+        let config = self.config.clone();
         let mut inner = self.inner.clone();
 
         Box::pin(async move {
@@ -81,14 +84,27 @@ where
                 );
             }
 
+            // Extract bucket and object from URI for cache optimization
+            let (bucket, object) = parse_bucket_and_object_from_uri(&uri);
+            
             // Validate the signature (header-based or query parameter-based)
             let auth_result = if is_presigned {
                 validator
                     .validate_presigned_request(&method, &uri, &headers, &body_bytes)
                     .await
             } else {
+                // Use optimized validation with cache lookup for regular requests
+                let storage_path = std::path::Path::new(&config.location);
                 validator
-                    .validate_request(&method, &uri, &headers, &body_bytes)
+                    .validate_request_with_object_info(
+                        &method, 
+                        &uri, 
+                        &headers, 
+                        &body_bytes,
+                        Some(storage_path),
+                        bucket.as_deref(),
+                        object.as_deref(),
+                    )
                     .await
             };
 
@@ -187,11 +203,12 @@ where
 #[derive(Clone)]
 pub struct AuthLayer {
     validator: Arc<AwsSignatureV4Validator>,
+    config: Arc<Config>,
 }
 
 impl AuthLayer {
-    pub fn new(validator: Arc<AwsSignatureV4Validator>) -> Self {
-        Self { validator }
+    pub fn new(validator: Arc<AwsSignatureV4Validator>, config: Arc<Config>) -> Self {
+        Self { validator, config }
     }
 }
 
@@ -199,7 +216,25 @@ impl<S> Layer<S> for AuthLayer {
     type Service = AuthMiddleware<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        AuthMiddleware::new(inner, self.validator.clone())
+        AuthMiddleware::new(inner, self.validator.clone(), self.config.clone())
+    }
+}
+
+fn parse_bucket_and_object_from_uri(uri: &hyper::Uri) -> (Option<String>, Option<String>) {
+    let path = uri.path();
+    
+    // Remove leading slash and split by '/'
+    let parts: Vec<&str> = path.trim_start_matches('/').split('/').filter(|s| !s.is_empty()).collect();
+    
+    match parts.len() {
+        0 => (None, None), // Root path
+        1 => (Some(parts[0].to_string()), None), // Just bucket
+        _ => {
+            // Bucket + object path
+            let bucket = parts[0].to_string();
+            let object = parts[1..].join("/");
+            (Some(bucket), Some(object))
+        }
     }
 }
 
@@ -240,7 +275,15 @@ mod tests {
     #[tokio::test]
     async fn test_auth_middleware_missing_auth_header() {
         let validator = Arc::new(AwsSignatureV4Validator::new());
-        let layer = AuthLayer::new(validator);
+        let config = Arc::new(Config {
+            location: "./test_data".to_string(),
+            address: "127.0.0.1".to_string(),
+            port: "8333".to_string(),
+            log_level: "info".to_string(),
+            aws_credentials: vec![],
+            encryption: None,
+        });
+        let layer = AuthLayer::new(validator, config);
 
         // Create a dummy service that just returns OK
         let service = tower::service_fn(|_req: Request| async {

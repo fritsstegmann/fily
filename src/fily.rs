@@ -107,7 +107,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     }
 
     let auth_validator = Arc::new(validator);
-    let auth_layer = AuthLayer::new(auth_validator);
+    let auth_layer = AuthLayer::new(auth_validator, config_state.clone());
 
     // build our application with routes
     let protected_routes = Router::new()

@@ -10,6 +10,8 @@ use subtle::ConstantTimeEq;
 use thiserror::Error;
 use tracing::{debug, error, info, instrument, warn};
 
+use super::metadata::load_metadata;
+
 type HmacSha256 = Hmac<Sha256>;
 
 // AWS SigV4 constants
@@ -165,6 +167,19 @@ impl AwsSignatureV4Validator {
         headers: &HeaderMap,
         body: &[u8],
     ) -> Result<String, AuthError> {
+        self.validate_request_with_object_info(method, uri, headers, body, None, None, None).await
+    }
+
+    pub async fn validate_request_with_object_info(
+        &self,
+        method: &Method,
+        uri: &Uri,
+        headers: &HeaderMap,
+        body: &[u8],
+        storage_path: Option<&std::path::Path>,
+        bucket: Option<&str>,
+        object: Option<&str>,
+    ) -> Result<String, AuthError> {
         // Extract authorization header
         let auth_header = headers
             .get(AUTHORIZATION_HEADER)
@@ -187,15 +202,18 @@ impl AwsSignatureV4Validator {
         // Validate timestamp
         self.validate_timestamp(headers)?;
 
-        // Calculate expected signature
+        // Calculate expected signature with optional cached hash
         let expected_signature = self
-            .calculate_signature(
+            .calculate_signature_with_cache(
                 method,
                 uri,
                 headers,
                 body,
                 credentials,
                 &signature_components,
+                storage_path,
+                bucket,
+                object,
             )
             .await?;
 
@@ -371,6 +389,33 @@ impl AwsSignatureV4Validator {
         Ok(signature)
     }
 
+    async fn calculate_signature_with_cache(
+        &self,
+        method: &Method,
+        uri: &Uri,
+        headers: &HeaderMap,
+        body: &[u8],
+        credentials: &AwsCredentials,
+        components: &SignatureComponents,
+        storage_path: Option<&std::path::Path>,
+        bucket: Option<&str>,
+        object: Option<&str>,
+    ) -> Result<String, AuthError> {
+        // Step 1: Create canonical request with cached hash if available
+        let canonical_request = self
+            .create_canonical_request_with_cache(
+                method, uri, headers, body, components, storage_path, bucket, object,
+            )
+            .await?;
+        debug!("canonical_request (with cache):\n{}", canonical_request);
+        // Step 2: Create string to sign
+        let string_to_sign =
+            self.create_string_to_sign(&canonical_request, headers, &credentials.region)?;
+        // Step 3: Calculate signature
+        let signature = self.calculate_signature_value(&string_to_sign, headers, credentials)?;
+        Ok(signature)
+    }
+
     fn create_canonical_request(
         &self,
         method: &Method,
@@ -398,6 +443,75 @@ impl AwsSignatureV4Validator {
                 .map_err(|_| AuthError::MalformedRequest)?
                 .to_string()
         } else {
+            hex::encode(Sha256::digest(body))
+        };
+
+        let canonical_request = format!(
+            "{}\n{}\n{}\n{}\n{}\n{}",
+            method_str,
+            canonical_uri,
+            canonical_query_string,
+            canonical_headers,
+            signed_headers,
+            payload_hash
+        );
+
+        Ok(canonical_request)
+    }
+
+    async fn create_canonical_request_with_cache(
+        &self,
+        method: &Method,
+        uri: &Uri,
+        headers: &HeaderMap,
+        body: &[u8],
+        components: &SignatureComponents,
+        storage_path: Option<&std::path::Path>,
+        bucket: Option<&str>,
+        object: Option<&str>,
+    ) -> Result<String, AuthError> {
+        // HTTP method
+        let method_str = method.as_str();
+
+        // Canonical URI
+        let canonical_uri = self.canonical_uri(uri);
+
+        // Canonical query string
+        let canonical_query_string = self.canonical_query_string(uri);
+
+        // Canonical headers
+        let (canonical_headers, signed_headers) = self.canonical_headers(headers, components)?;
+
+        // Payload hash - try to use cached hash first, fallback to computing from body
+        let payload_hash = if let Some(content_sha256) = headers.get(X_AMZ_CONTENT_SHA256_HEADER) {
+            // Use header value if present
+            content_sha256
+                .to_str()
+                .map_err(|_| AuthError::MalformedRequest)?
+                .to_string()
+        } else if let (Some(storage_path), Some(bucket), Some(object)) = (storage_path, bucket, object) {
+            // Try to load cached hash from metadata
+            match load_metadata(storage_path, bucket, object).await {
+                Ok(Some(metadata)) => {
+                    if let Some(cached_hash) = metadata.get_content_sha256() {
+                        debug!("Using cached SHA256 hash from metadata: {}", cached_hash);
+                        cached_hash.clone()
+                    } else {
+                        debug!("No cached hash in metadata, computing from body");
+                        hex::encode(Sha256::digest(body))
+                    }
+                }
+                Ok(None) => {
+                    debug!("No metadata file found, computing hash from body");
+                    hex::encode(Sha256::digest(body))
+                }
+                Err(e) => {
+                    warn!("Failed to load metadata for hash cache ({}), computing from body: {}", object, e);
+                    hex::encode(Sha256::digest(body))
+                }
+            }
+        } else {
+            // No cached hash available, compute from body
             hex::encode(Sha256::digest(body))
         };
 

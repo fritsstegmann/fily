@@ -12,6 +12,7 @@ pub struct ObjectMetadata {
     pub etag: String,
     pub last_modified: String,
     pub user_metadata: HashMap<String, String>,
+    pub content_sha256: Option<String>, // SHA256 hash of original content for signature validation
 }
 
 impl ObjectMetadata {
@@ -35,11 +36,32 @@ impl ObjectMetadata {
             etag,
             last_modified,
             user_metadata: HashMap::new(),
+            content_sha256: None,
         }
+    }
+
+    pub fn with_content_sha256(
+        content_type: Option<String>,
+        content_length: u64,
+        etag: String,
+        file_path: &str,
+        content_sha256: String,
+    ) -> Self {
+        let mut metadata = Self::new(content_type, content_length, etag, file_path);
+        metadata.content_sha256 = Some(content_sha256);
+        metadata
     }
 
     pub fn add_user_metadata(&mut self, key: String, value: String) {
         self.user_metadata.insert(key, value);
+    }
+
+    pub fn set_content_sha256(&mut self, sha256: String) {
+        self.content_sha256 = Some(sha256);
+    }
+
+    pub fn get_content_sha256(&self) -> Option<&String> {
+        self.content_sha256.as_ref()
     }
 }
 
@@ -169,5 +191,6 @@ mod tests {
         assert_eq!(loaded.content_length, 1024);
         assert_eq!(loaded.etag, "\"abc123\"");
         assert_eq!(loaded.user_metadata.get("author"), Some(&"test-user".to_string()));
+        assert_eq!(loaded.content_sha256, None);
     }
 }

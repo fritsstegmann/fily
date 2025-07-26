@@ -4,8 +4,20 @@ use axum::http::{HeaderValue, Method, StatusCode};
 use axum::response::Response;
 use fily::fily::auth::AwsSignatureV4Validator;
 use fily::fily::auth_middleware::{AuthLayer, AuthMiddleware};
+use fily::fily::Config;
 use std::sync::Arc;
 use tower::Layer;
+
+fn create_test_config() -> Arc<Config> {
+    Arc::new(Config {
+        location: "./test_data".to_string(),
+        address: "127.0.0.1".to_string(),
+        port: "8333".to_string(),
+        log_level: "info".to_string(),
+        aws_credentials: vec![],
+        encryption: None,
+    })
+}
 
 
 #[tokio::test]
@@ -14,7 +26,7 @@ async fn test_auth_middleware_creation() {
     let service = tower::service_fn(|_req: Request| async {
         Ok::<_, std::convert::Infallible>(Response::new(Body::empty()))
     });
-    let middleware = AuthMiddleware::new(service, validator);
+    let middleware = AuthMiddleware::new(service, validator, create_test_config());
     
     // Basic test that middleware can be created
     assert!(std::ptr::addr_of!(middleware) as usize != 0);
@@ -23,7 +35,7 @@ async fn test_auth_middleware_creation() {
 #[tokio::test]
 async fn test_auth_layer_creation() {
     let validator = Arc::new(AwsSignatureV4Validator::new());
-    let layer = AuthLayer::new(validator);
+    let layer = AuthLayer::new(validator, create_test_config());
     
     // Basic test that layer can be created
     assert!(std::ptr::addr_of!(layer) as usize != 0);
@@ -32,7 +44,7 @@ async fn test_auth_layer_creation() {
 #[tokio::test]
 async fn test_auth_layer_wraps_service() {
     let validator = Arc::new(AwsSignatureV4Validator::new());
-    let layer = AuthLayer::new(validator);
+    let layer = AuthLayer::new(validator, create_test_config());
     let service = tower::service_fn(|_req: Request| async {
         Ok::<_, std::convert::Infallible>(Response::new(Body::empty()))
     });

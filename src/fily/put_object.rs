@@ -6,6 +6,7 @@ use axum::Extension;
 use bytes::Bytes;
 use hyper::{HeaderMap, StatusCode};
 use tracing::{debug, info, error, instrument};
+use sha2::{Sha256, Digest};
 
 use super::encryption::{Encryptor, KeyManager, XChaCha20Poly1305Encryptor};
 use super::etag::generate_etag;
@@ -111,18 +112,25 @@ pub async fn handle(
             // Generate e-tag for the original content (before encryption)
             let etag = generate_etag(bytes.as_ref());
             
+            // Compute SHA256 hash of original content for signature validation caching
+            let mut hasher = Sha256::new();
+            hasher.update(bytes.as_ref());
+            let content_sha256 = hex::encode(hasher.finalize());
+            debug!("Computed content SHA256 hash for caching: {}", content_sha256);
+            
             // Extract content-type from headers
             let content_type = headers
                 .get("content-type")
                 .and_then(|v| v.to_str().ok())
                 .map(|s| s.to_string());
             
-            // Create and store metadata
-            let mut metadata = ObjectMetadata::new(
+            // Create and store metadata with SHA256 hash
+            let mut metadata = ObjectMetadata::with_content_sha256(
                 content_type.clone(),
                 bytes.len() as u64,
                 etag.clone(),
                 &file,
+                content_sha256,
             );
             
             // Add user metadata from x-amz-meta-* headers

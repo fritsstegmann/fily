@@ -16,6 +16,7 @@ async fn test_metadata_path_injection_protection() {
         etag: "\"abc123\"".to_string(),
         last_modified: "Mon, 01 Jan 2024 00:00:00 GMT".to_string(),
         user_metadata,
+        content_sha256: Some("abc123def456".to_string()),
     };
 
     // Test that path traversal attempts in object names are rejected
@@ -59,6 +60,7 @@ async fn test_metadata_bucket_name_injection_protection() {
         etag: "\"abc123\"".to_string(),
         last_modified: "Mon, 01 Jan 2024 00:00:00 GMT".to_string(),
         user_metadata,
+        content_sha256: Some("abc123def456".to_string()),
     };
 
     // Test that path traversal attempts in bucket names are rejected
@@ -102,6 +104,7 @@ async fn test_metadata_secure_path_construction() {
         etag: "\"def456\"".to_string(),
         last_modified: "Tue, 02 Jan 2024 12:00:00 GMT".to_string(),
         user_metadata,
+        content_sha256: Some("def456abc123".to_string()),
     };
 
     // Test that valid names work correctly
@@ -152,6 +155,7 @@ async fn test_metadata_file_isolation() {
         etag: "\"ghi789\"".to_string(),
         last_modified: "Wed, 03 Jan 2024 18:30:00 GMT".to_string(),
         user_metadata,
+        content_sha256: Some("ghi789abc123".to_string()),
     };
 
     // Create metadata for a legitimate file
