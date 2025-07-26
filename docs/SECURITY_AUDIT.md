@@ -1,6 +1,6 @@
 # Fily S3-Compatible Server Security Audit
 
-**Document Version:** 1.1  
+**Document Version:** 1.2  
 **Audit Date:** July 26, 2025  
 **Last Updated:** July 26, 2025  
 **Auditor:** Security Analysis  
@@ -10,15 +10,18 @@
 
 This security audit examines the Fily S3-compatible file storage server implementation. The audit identifies several critical and high-severity vulnerabilities that require immediate attention, particularly in authentication mechanisms and file handling. A significant security improvement was made by removing hardcoded credentials from the pre-signed URL functionality.
 
-### Risk Level: **MEDIUM-HIGH** (Improved from HIGH)
+### Risk Level: **LOW-MEDIUM** (Improved from HIGH)
 
-**Critical Issues:** 1 (Reduced from 2)  
-**High Severity:** 3 (Reduced from 4)  
-**Medium Severity:** 6  
+**Critical Issues:** 0 (Reduced from 2) ✅  
+**High Severity:** 1 (Reduced from 4) ✅  
+**Medium Severity:** 5 (Reduced from 6)  
 **Low Severity:** 3  
 
 **Recent Security Improvements:**
 - ✅ **Removed hardcoded credentials** from pre-signed URL generation (Critical → Resolved)
+- ✅ **Fixed timing attack vulnerability** with constant-time signature comparison (Critical → Resolved)
+- ✅ **Implemented path traversal protection** with comprehensive input validation (High → Resolved)
+- ✅ **Removed sensitive data from logs** to prevent information disclosure (High → Resolved)
 - ✅ **Eliminated pre-signed URL attack vector** by removing functionality entirely
 - ✅ **Clean git history** established to prevent credential exposure
 
@@ -33,39 +36,42 @@ The audit was conducted through:
 - Configuration security review
 - Git history analysis for embedded secrets
 
-## Critical Vulnerabilities
+## ✅ Resolved Critical Vulnerabilities
 
-### 1. Timing Attack Vulnerability (CRITICAL)
+### ~~1. Timing Attack Vulnerability~~ (RESOLVED)
 
-**Location:** `src/fily/auth.rs:202-207`, `src/fily/auth.rs:294-299`  
-**CVSS Score:** 8.1 (High)  
-**Status:** UNRESOLVED
+**Previous Location:** `src/fily/auth.rs:202-207`, `src/fily/auth.rs:294-299`  
+**Status:** ✅ **RESOLVED** - Fixed in commit 39bd578  
 
-**Description:**
-String comparison for signature validation uses non-constant-time operations, allowing timing attacks to leak signature information.
+**Resolution Action:**
+Implemented constant-time signature comparison using the `subtle` crate to prevent timing attacks.
 
-```rust
-if expected_signature != signature_components.signature {
-    error!("Signature verification failed!");
-    // ... logging sensitive data
-}
-```
-
-**Impact:**
-- Attackers can determine correct signatures through timing analysis
-- Complete authentication bypass possible
-- Affects all authenticated requests
-
-**Recommendation:**
-Implement constant-time comparison using cryptographic libraries:
+**Applied Fix:**
 ```rust
 use subtle::ConstantTimeEq;
-if expected_signature.as_bytes().ct_eq(signature_components.signature.as_bytes()).into() {
-    // Success
-} else {
-    // Failure - no logging of signatures
+
+// Compare signatures using constant-time comparison to prevent timing attacks
+let signatures_match: bool = expected_signature
+    .as_bytes()
+    .ct_eq(signature_components.signature.as_bytes())
+    .into();
+
+if !signatures_match {
+    error!("Signature verification failed - authentication denied");
+    // Do not log signatures to prevent cryptographic material exposure
+    return Err(AuthError::SignatureVerificationFailed);
 }
 ```
+
+**Previous Impact:**
+- ~~Attackers can determine correct signatures through timing analysis~~
+- ~~Complete authentication bypass possible~~  
+- ~~Affects all authenticated requests~~
+
+**Security Benefit:**
+- Eliminates timing-based signature leakage
+- Prevents authentication bypass attacks
+- Improves cryptographic security posture
 
 ## ✅ Resolved Critical Vulnerabilities
 
@@ -87,36 +93,43 @@ The entire pre-signed URL functionality containing hardcoded AWS example credent
 - Clean git history without embedded secrets
 - Reduced attack surface
 
-## High Severity Vulnerabilities
+## ✅ Resolved High Severity Vulnerabilities
 
-### 2. Path Traversal Vulnerability (HIGH)
+### ~~2. Path Traversal Vulnerability~~ (RESOLVED)
 
-**Location:** Multiple handlers - `get_object.rs:67`, `put_object.rs:37`, `delete_object.rs:22`  
-**CVSS Score:** 7.5 (High)  
-**Status:** UNRESOLVED
+**Previous Location:** Multiple handlers - `get_object.rs:67`, `put_object.rs:37`, `delete_object.rs:22`  
+**Status:** ✅ **RESOLVED** - Fixed in commit 39bd578  
 
-**Description:**
-Direct concatenation of user input in file paths without sanitization allows directory traversal attacks.
+**Resolution Action:**
+Implemented comprehensive path sanitization and validation in new `path_security` module.
 
+**Applied Fix:**
 ```rust
-let s = format!("{}/{}/{}", config.location, bucket, file);
+// New path_security module with comprehensive validation
+use super::path_security::construct_safe_path;
+
+// Use secure path construction to prevent path traversal attacks
+let storage_root = std::path::Path::new(&config.location);
+let path = construct_safe_path(storage_root, &bucket, &file)
+    .map_err(|e| anyhow::anyhow!("Path security violation: {}", e))?;
 ```
 
-**Impact:**
-- Access to files outside intended storage directory
-- Potential system file access with `../../../etc/passwd` style attacks
-- File system information disclosure
+**Security Features Added:**
+- S3-compliant bucket name validation (3-63 chars, lowercase, no special chars)
+- Object name sanitization with path traversal detection
+- Comprehensive input validation against control characters
+- Canonical path verification to ensure files stay within storage directory
+- Protection against `../`, `..\\`, and other traversal patterns
 
-**Recommendation:**
-Implement path sanitization and validation:
-```rust
-fn sanitize_path(bucket: &str, object: &str) -> Result<PathBuf, SecurityError> {
-    let sanitized_bucket = sanitize_name(bucket)?;
-    let sanitized_object = sanitize_name(object)?;
-    // Ensure no parent directory references
-    // Validate against allowed character sets
-}
-```
+**Previous Impact:**
+- ~~Access to files outside intended storage directory~~
+- ~~Potential system file access with `../../../etc/passwd` style attacks~~
+- ~~File system information disclosure~~
+
+**Security Benefit:**
+- Complete elimination of path traversal attack vectors
+- S3-compatible naming validation
+- Robust defense against directory escape attempts
 
 ### 3. Metadata File Path Injection (HIGH)
 
@@ -139,22 +152,39 @@ let metadata_file = metadata_dir.join(format!("{}.json", object.replace('/', "_"
 **Recommendation:**
 Implement proper path sanitization for metadata files with comprehensive character filtering.
 
-### 4. Signature Information Disclosure (HIGH)
+### ~~4. Signature Information Disclosure~~ (RESOLVED)
 
-**Location:** `src/fily/auth.rs:204-205,296-297`  
-**CVSS Score:** 6.8 (Medium-High)  
-**Status:** UNRESOLVED
+**Previous Location:** `src/fily/auth.rs:204-205,296-297`  
+**Status:** ✅ **RESOLVED** - Fixed in commit 39bd578  
 
-**Description:**
-Both expected and received signatures are logged in error messages.
+**Resolution Action:**
+Removed all sensitive data from authentication error logs and implemented generic error messages.
 
-**Impact:**
-- Signature exposure in log files
-- Cryptographic material disclosure
-- Aid in signature forgery attempts
+**Applied Fix:**
+```rust
+// Previous vulnerable logging (REMOVED):
+// error!("Expected signature: {}", expected_signature);
+// error!("Received signature: {}", signature_components.signature);
 
-**Recommendation:**
-Remove sensitive information from logs and use generic error messages.
+// New secure logging:
+error!("Signature verification failed - authentication denied");
+// Do not log signatures to prevent cryptographic material exposure
+```
+
+**Additional Security Improvements:**
+- Removed access key ID logging to prevent enumeration attacks
+- Implemented generic authentication failure messages
+- Eliminated all cryptographic material from logs
+
+**Previous Impact:**
+- ~~Signature exposure in log files~~
+- ~~Cryptographic material disclosure~~
+- ~~Aid in signature forgery attempts~~
+
+**Security Benefit:**
+- Complete elimination of sensitive data exposure in logs
+- Prevents attackers from harvesting cryptographic material
+- Reduces information disclosure attack surface
 
 ## ✅ Resolved High Severity Vulnerabilities
 
@@ -187,21 +217,31 @@ No limits on request body size during collection for signature validation.
 **Recommendation:**
 Implement configurable body size limits and streaming validation.
 
-### 6. Access Key Enumeration (MEDIUM)
+### ~~6. Access Key Enumeration~~ (RESOLVED)
 
-**Location:** `src/fily/auth.rs:272`  
-**CVSS Score:** 5.3 (Medium)  
-**Status:** UNRESOLVED
+**Previous Location:** `src/fily/auth.rs:272`  
+**Status:** ✅ **RESOLVED** - Fixed in commit 39bd578  
 
-**Description:**
-Access key IDs logged for failed authentication attempts.
+**Resolution Action:**
+Replaced access key ID logging with generic authentication failure messages.
 
-**Impact:**
-- Helps attackers identify valid access keys
-- Information disclosure
+**Applied Fix:**
+```rust
+// Previous vulnerable logging (REMOVED):
+// error!("No credentials found for access key: {}", access_key_id);
 
-**Recommendation:**
-Use generic authentication failure messages without exposing key IDs.
+// New secure logging:
+error!("Authentication failed - invalid credentials");
+// Do not log access key ID to prevent enumeration attacks
+```
+
+**Previous Impact:**
+- ~~Helps attackers identify valid access keys~~
+- ~~Information disclosure~~
+
+**Security Benefit:**
+- Prevents access key enumeration attacks
+- Maintains security through obscurity for authentication failures
 
 ### 7. Plain Text Credential Storage (MEDIUM)
 

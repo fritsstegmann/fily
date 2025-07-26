@@ -5,15 +5,15 @@ An S3-compatible file storage server built in Rust using Axum. Fily implements A
 ## Features
 
 - **S3-Compatible API**: Implements core AWS S3 operations including bucket and object management
-- **AWS SigV4 Authentication**: Full support for AWS Signature Version 4 authentication
+- **Secure AWS SigV4 Authentication**: Constant-time signature validation preventing timing attacks
 - **S3-Compatible Error Codes**: Proper HTTP status codes and XML error responses matching AWS S3
 - **Content-Type Handling**: Automatic MIME type detection and user metadata support
 - **ETag Generation**: MD5-based ETags for object integrity verification
 - **XChaCha20-Poly1305 Encryption**: Optional server-side encryption for stored objects
-- **Pre-signed URL Support**: Generate and validate pre-signed URLs for temporary access
-- **Local Storage Backend**: Files are stored on local disk with configurable location
+- **Path Traversal Protection**: Comprehensive input validation and path sanitization
+- **Local Storage Backend**: Files are stored securely on local disk with validated paths
 - **Multiple AWS Credentials**: Support for multiple AWS access key/secret key pairs
-- **Comprehensive Logging**: Detailed request/response logging with configurable levels
+- **Security-Focused Logging**: Detailed logging without sensitive data exposure
 
 ## Supported S3 Operations
 
@@ -205,19 +205,20 @@ src/
 ├── main.rs                    # Entry point and configuration
 ├── fily.rs                   # Main server setup and routing
 └── fily/
-    ├── auth.rs               # AWS SigV4 authentication
+    ├── auth.rs               # Secure AWS SigV4 authentication with timing attack protection
     ├── auth_middleware.rs    # Authentication middleware
     ├── s3_app_error.rs       # S3-compatible error responses
     ├── etag.rs               # ETag generation for object integrity
     ├── metadata.rs           # Object metadata storage and MIME detection
+    ├── path_security.rs      # Path traversal protection and input validation
     ├── encryption/           # XChaCha20-Poly1305 encryption modules
     ├── list_buckets.rs       # List buckets handler
     ├── create_bucket.rs      # Create bucket handler
     ├── delete_bucket.rs      # Delete bucket handler
     ├── search_bucket.rs      # List objects handler
-    ├── get_object.rs         # Get object handler
-    ├── put_object.rs         # Put object handler
-    └── delete_object.rs      # Delete object handler
+    ├── get_object.rs         # Secure get object handler
+    ├── put_object.rs         # Secure put object handler
+    └── delete_object.rs      # Secure delete object handler
 
 tests/
 ├── auth_tests.rs             # Authentication tests
@@ -272,13 +273,15 @@ RUST_LOG=debug ./fily
 
 Log levels available: `trace`, `debug`, `info`, `warn`, `error`
 
-## Security Considerations
+## Security Features
 
-- All requests require proper AWS SigV4 authentication
-- Pre-signed URLs have configurable expiration times (max 7 days)
-- Request timestamps are validated with 15-minute clock skew tolerance
-- File paths are validated to prevent directory traversal attacks
-- No sensitive information is logged at default log levels
+- **Secure Authentication**: Constant-time AWS SigV4 signature validation prevents timing attacks
+- **Path Traversal Protection**: Comprehensive input validation and path sanitization
+- **Request Validation**: Timestamps validated with 15-minute clock skew tolerance
+- **Secure Logging**: No sensitive information (signatures, keys) logged at any level
+- **Input Sanitization**: S3-compliant bucket and object name validation
+- **Directory Isolation**: Files are strictly contained within configured storage directory
+- **Access Key Protection**: Generic error messages prevent access key enumeration
 
 ## Limitations
 
