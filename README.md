@@ -217,8 +217,7 @@ src/
     ├── search_bucket.rs      # List objects handler
     ├── get_object.rs         # Get object handler
     ├── put_object.rs         # Put object handler
-    ├── delete_object.rs      # Delete object handler
-    └── generate_presigned_url.rs # Pre-signed URL generation
+    └── delete_object.rs      # Delete object handler
 
 tests/
 ├── auth_tests.rs             # Authentication tests
@@ -229,6 +228,12 @@ tests/
 ├── middleware_tests.rs       # Middleware tests
 ├── error_handling_tests.rs   # Error handling tests
 └── presigned_url_tests.rs    # Pre-signed URL tests
+
+docs/
+├── SECURITY_AUDIT.md         # Security vulnerability assessment
+├── PERFORMANCE_REPORT.md     # Performance analysis and optimization
+├── S3_COMPATIBILITY_GAP_ANALYSIS.md  # S3 API compatibility analysis
+└── S3_VERSIONING_DESIGN.md   # S3 versioning implementation design
 ```
 
 ## Error Handling

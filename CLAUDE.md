@@ -238,4 +238,4 @@ Implement ongoing monitoring for:
 - Security event detection
 - Error rate monitoring
 
-Refer to `SECURITY_AUDIT.md` and `PERFORMANCE_REPORT.md` for detailed guidelines and findings.
+Refer to `docs/SECURITY_AUDIT.md` and `docs/PERFORMANCE_REPORT.md` for detailed guidelines and findings.
