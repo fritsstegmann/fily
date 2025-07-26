@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  fily:
+    build: .
+    container_name: fily-s3
+    ports:
+      - "8333:8333"
+    volumes:
+      # Mount persistent storage for S3 objects
+      - fily-data:/app/data
+      # Optional: Mount custom config (uncomment and create config.toml)
+      # - ./config.toml:/app/config.toml:ro
+    environment:
+      - RUST_LOG=info
+      - FILY_CONFIG_PATH=/app/config.toml
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  fily-data:
+    driver: local

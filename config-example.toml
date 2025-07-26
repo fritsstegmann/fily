@@ -1,0 +1,19 @@
+[fily]
+location = "./data"
+port = "8333"
+address = "0.0.0.0"
+
+# AWS credentials for S3 API authentication
+# Replace with your actual AWS credentials
+aws_access_key_id = "your_access_key_here"
+aws_secret_access_key = "your_secret_key_here"
+aws_region = "us-east-1"
+
+# File encryption configuration (optional)
+[fily.encryption]
+enabled = false
+# 256-bit base64-encoded master key (generate with: openssl rand -base64 32)
+# master_key = "your_base64_encoded_key_here"
+
+[tracing]
+level = "info"

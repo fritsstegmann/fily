@@ -1,0 +1,7 @@
+/target
+
+# Data storage directory
+/data
+
+# Configuration file with credentials
+config.toml

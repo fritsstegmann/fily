@@ -1,0 +1,35 @@
+# Ignore build artifacts and development files
+target/
+Cargo.lock
+
+# Ignore git and IDE files
+.git/
+.gitignore
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Ignore documentation and examples (except config-example.toml)
+*.md
+!README.md
+
+# Ignore test files
+tests/
+
+# Ignore temporary files
+.tmp/
+*.tmp
+*.log
+
+# Ignore OS specific files
+.DS_Store
+Thumbs.db
+
+# Ignore local config files (but keep example)
+config.toml
+!config-example.toml
+
+# Ignore local data directory
+data/
