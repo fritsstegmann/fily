@@ -9,6 +9,7 @@ pub mod etag;
 mod get_object;
 mod list_buckets;
 pub mod metadata;
+pub mod path_security;
 mod put_object;
 pub mod s3_app_error;
 mod search_bucket;

@@ -10,6 +10,7 @@ use tracing::{debug, info, error, instrument};
 use super::encryption::{Encryptor, KeyManager, XChaCha20Poly1305Encryptor};
 use super::etag::generate_etag;
 use super::metadata::{ObjectMetadata, extract_user_metadata, save_metadata};
+use super::path_security::construct_safe_path;
 use super::s3_app_error::S3AppError;
 use super::Config;
 
@@ -34,10 +35,20 @@ pub async fn handle(
     debug!("Request headers: {:?}", headers);
     debug!("Content length: {} bytes", bytes.len());
 
-    let s = format!("{}/{}/{}", config.location, bucket, file);
-    let path = std::path::Path::new(&s);
+    // Use secure path construction to prevent path traversal attacks
+    let storage_root = std::path::Path::new(&config.location);
+    let path = match construct_safe_path(storage_root, &bucket, &file) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("Path security violation: {}", e);
+            return Err(S3AppError::with_message(
+                super::s3_app_error::S3ErrorCode::InvalidArgument,
+                format!("Invalid bucket or object name: {}", e)
+            ));
+        }
+    };
     
-    debug!("Target file path: {}", s);
+    debug!("Target file path: {}", path.display());
     
     let prefix = path.parent();
     match prefix {
@@ -141,9 +152,9 @@ pub async fn handle(
             Ok((StatusCode::OK, response_headers, "").into_response())
         }
         None => {
-            error!("Failed to determine parent directory for path: {}", s);
+            error!("Failed to determine parent directory for path: {}", path.display());
             Err(S3AppError::internal_error(&format!(
-                "Failed getting parent path for: {}", s
+                "Failed getting parent path for: {}", path.display()
             )))
         }
     }

@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 use thiserror::Error;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -198,11 +199,15 @@ impl AwsSignatureV4Validator {
             )
             .await?;
 
-        // Compare signatures
-        if expected_signature != signature_components.signature {
-            error!("Signature verification failed!");
-            error!("Expected signature: {}", expected_signature);
-            error!("Received signature: {}", signature_components.signature);
+        // Compare signatures using constant-time comparison to prevent timing attacks
+        let signatures_match: bool = expected_signature
+            .as_bytes()
+            .ct_eq(signature_components.signature.as_bytes())
+            .into();
+        
+        if !signatures_match {
+            error!("Signature verification failed - authentication denied");
+            // Do not log signatures to prevent cryptographic material exposure
             return Err(AuthError::SignatureVerificationFailed);
         }
 
@@ -268,7 +273,8 @@ impl AwsSignatureV4Validator {
         let access_key_id = self.extract_access_key_id(credential)?;
 
         let credentials = self.credentials.get(&access_key_id).ok_or_else(|| {
-            error!("No credentials found for access key: {}", access_key_id);
+            error!("Authentication failed - invalid credentials");
+            // Do not log access key ID to prevent enumeration attacks
             AuthError::InvalidAccessKey
         })?;
 
@@ -291,10 +297,12 @@ impl AwsSignatureV4Validator {
             )
             .await?;
 
-        if expected_signature != *signature {
-            error!("Signature verification failed - signatures do not match");
-            error!("Expected: {}", expected_signature);
-            error!("Provided: {}", signature);
+        // Compare signatures using constant-time comparison to prevent timing attacks
+        let signatures_match: bool = expected_signature.as_bytes().ct_eq(signature.as_bytes()).into();
+        
+        if !signatures_match {
+            error!("Pre-signed URL signature verification failed - authentication denied");
+            // Do not log signatures to prevent cryptographic material exposure
             return Err(AuthError::SignatureVerificationFailed);
         }
 

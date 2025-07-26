@@ -6,6 +6,7 @@ use axum::Extension;
 use hyper::StatusCode;
 
 use super::metadata::delete_metadata;
+use super::path_security::construct_safe_path;
 use super::s3_app_error::S3AppError;
 use super::Config;
 
@@ -19,8 +20,17 @@ pub async fn handle(
         return Err(S3AppError::no_such_bucket(&bucket));
     }
     
-    let s = format!("{}/{}/{}", config.location, bucket, file);
-    let path = std::path::Path::new(&s);
+    // Use secure path construction to prevent path traversal attacks
+    let storage_root = std::path::Path::new(&config.location);
+    let path = match construct_safe_path(storage_root, &bucket, &file) {
+        Ok(p) => p,
+        Err(e) => {
+            return Err(S3AppError::with_message(
+                super::s3_app_error::S3ErrorCode::InvalidArgument,
+                format!("Invalid bucket or object name: {}", e)
+            ));
+        }
+    };
     
     match tokio::fs::remove_file(path).await {
         Ok(_) => {

@@ -43,6 +43,7 @@ hkdf = "0.12"
 md-5 = "0.10"
 mime_guess = "2.0"
 uuid = { version = "1.0", features = ["v4"] }
+subtle = "2.5"
 
 [dev-dependencies]
 tempfile = "3.8"

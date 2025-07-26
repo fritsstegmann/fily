@@ -8,6 +8,7 @@ use hyper::{HeaderMap, StatusCode};
 use super::encryption::{KeyManager, XChaCha20Poly1305Encryptor, Encryptor};
 use super::etag::generate_etag;
 use super::metadata::{load_metadata, detect_content_type};
+use super::path_security::construct_safe_path;
 use super::s3_app_error::S3AppError;
 use super::Config;
 
@@ -64,8 +65,10 @@ pub async fn handle(
 }
 
 async fn get_object(config: &Arc<Config>, bucket: &str, file: &str) -> anyhow::Result<Vec<u8>> {
-    let s = format!("{}/{}/{}", config.location, bucket, file);
-    let path = std::path::Path::new(&s);
+    // Use secure path construction to prevent path traversal attacks
+    let storage_root = std::path::Path::new(&config.location);
+    let path = construct_safe_path(storage_root, bucket, file)
+        .map_err(|e| anyhow::anyhow!("Path security violation: {}", e))?;
 
     let file_data = tokio::fs::read(&path).await?;
 
