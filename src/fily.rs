@@ -6,7 +6,6 @@ mod delete_bucket;
 mod delete_object;
 pub mod encryption;
 pub mod etag;
-mod generate_presigned_url;
 mod get_object;
 mod list_buckets;
 pub mod metadata;
@@ -17,7 +16,7 @@ mod search_bucket;
 use std::sync::Arc;
 
 use axum::{
-    routing::{delete, get, post, put},
+    routing::{delete, get, put},
     Extension, Router,
 };
 use serde::Deserialize;
@@ -63,16 +62,17 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         &config_state.aws_region,
     ) {
         match AwsCredentials::new(access_key.clone(), secret_key.clone(), region.clone()) {
-            Ok(credentials) => {
-                match validator.add_credentials(access_key.clone(), credentials) {
-                    Ok(()) => {
-                        info!("Added validated AWS credentials for access key: {}", access_key);
-                    }
-                    Err(e) => {
-                        return Err(anyhow::anyhow!("Failed to add AWS credentials: {}", e));
-                    }
+            Ok(credentials) => match validator.add_credentials(access_key.clone(), credentials) {
+                Ok(()) => {
+                    info!(
+                        "Added validated AWS credentials for access key: {}",
+                        access_key
+                    );
                 }
-            }
+                Err(e) => {
+                    return Err(anyhow::anyhow!("Failed to add AWS credentials: {}", e));
+                }
+            },
             Err(e) => {
                 return Err(anyhow::anyhow!("Invalid AWS credentials format: {}", e));
             }
@@ -96,15 +96,8 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
         .route("/{bucket}/{file}", delete(delete_object::handle))
         .layer(auth_layer); // Add AWS SigV4 authentication layer
 
-    // Route for generating pre-signed URLs (no auth layer needed for generation)
-    let presigned_routes = Router::new().route(
-        "/_presign/{bucket}/{file}",
-        post(generate_presigned_url::handle),
-    );
-
     let app = Router::new()
         .merge(protected_routes)
-        .merge(presigned_routes)
         .layer(Extension(config_state))
         .layer(TraceLayer::new_for_http());
 
