@@ -28,21 +28,27 @@ use tracing::info;
 use auth::{AwsCredentials, AwsSignatureV4Validator};
 use auth_middleware::AuthLayer;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct EncryptionConfig {
     pub enabled: bool,
     pub master_key: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
+pub struct AwsCredentialConfig {
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    pub region: String,
+}
+
+#[derive(Debug)]
 pub struct Config {
-    location: String,
-    port: String,
-    address: String,
-    // AWS credentials configuration
-    aws_access_key_id: Option<String>,
-    aws_secret_access_key: Option<String>,
-    aws_region: Option<String>,
+    pub location: String,
+    pub port: String,
+    pub address: String,
+    pub log_level: String,
+    // Multiple AWS credentials support
+    pub aws_credentials: Vec<AwsCredentialConfig>,
     // Encryption configuration
     pub encryption: Option<EncryptionConfig>,
 }
@@ -55,31 +61,49 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
 
     // Setup AWS SigV4 authentication
     let mut validator = AwsSignatureV4Validator::new();
+    let mut credentials_added = 0;
 
-    // Add default credentials if provided in config
-    if let (Some(access_key), Some(secret_key), Some(region)) = (
-        &config_state.aws_access_key_id,
-        &config_state.aws_secret_access_key,
-        &config_state.aws_region,
-    ) {
-        match AwsCredentials::new(access_key.clone(), secret_key.clone(), region.clone()) {
-            Ok(credentials) => match validator.add_credentials(access_key.clone(), credentials) {
-                Ok(()) => {
-                    info!(
-                        "Added validated AWS credentials for access key: {}",
-                        access_key
-                    );
+    // Add all configured AWS credentials
+    for (index, aws_config) in config_state.aws_credentials.iter().enumerate() {
+        match AwsCredentials::new(
+            aws_config.access_key_id.clone(),
+            aws_config.secret_access_key.clone(),
+            aws_config.region.clone(),
+        ) {
+            Ok(credentials) => {
+                match validator.add_credentials(aws_config.access_key_id.clone(), credentials) {
+                    Ok(()) => {
+                        info!(
+                            "Added AWS credentials #{} for access key: {} (region: {})",
+                            index + 1,
+                            aws_config.access_key_id,
+                            aws_config.region
+                        );
+                        credentials_added += 1;
+                    }
+                    Err(e) => {
+                        return Err(anyhow::anyhow!(
+                            "Failed to add AWS credentials #{}: {}",
+                            index + 1,
+                            e
+                        ));
+                    }
                 }
-                Err(e) => {
-                    return Err(anyhow::anyhow!("Failed to add AWS credentials: {}", e));
-                }
-            },
+            }
             Err(e) => {
-                return Err(anyhow::anyhow!("Invalid AWS credentials format: {}", e));
+                return Err(anyhow::anyhow!(
+                    "Invalid AWS credentials format for credential #{}: {}",
+                    index + 1,
+                    e
+                ));
             }
         }
+    }
+
+    if credentials_added == 0 {
+        info!("No AWS credentials provided - authentication will be disabled");
     } else {
-        info!("No AWS credentials provided in config - authentication will be disabled");
+        info!("Successfully loaded {} AWS credential set(s)", credentials_added);
     }
 
     let auth_validator = Arc::new(validator);

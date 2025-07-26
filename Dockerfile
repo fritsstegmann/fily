@@ -32,6 +32,7 @@ FROM debian:bookworm-slim
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
@@ -43,7 +44,6 @@ RUN mkdir -p /app/data && chown -R fily:fily /app
 
 # Copy the built binary from builder stage
 COPY --from=builder /app/target/release/fily /app/fily
-COPY --chown=fily:fily config-example.toml /app/config.toml
 
 # Switch to non-root user
 USER fily
@@ -55,9 +55,11 @@ EXPOSE 8333
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8333/ || exit 1
 
-# Set environment variables
-ENV RUST_LOG=info
-ENV FILY_CONFIG_PATH=/app/config.toml
+# Set default environment variables
+ENV FILY_LOCATION=/app/data
+ENV FILY_PORT=8333
+ENV FILY_ADDRESS=0.0.0.0
+ENV FILY_LOG_LEVEL=info
 
 # Run the application
 CMD ["./fily"]

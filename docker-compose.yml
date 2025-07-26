@@ -9,11 +9,33 @@ services:
     volumes:
       # Mount persistent storage for S3 objects
       - fily-data:/app/data
-      # Optional: Mount custom config (uncomment and create config.toml)
-      # - ./config.toml:/app/config.toml:ro
     environment:
-      - RUST_LOG=info
-      - FILY_CONFIG_PATH=/app/config.toml
+      # Core Configuration
+      - FILY_LOCATION=/app/data
+      - FILY_PORT=8333
+      - FILY_ADDRESS=0.0.0.0
+      - FILY_LOG_LEVEL=info
+      
+      # AWS Credentials (uncomment and set your credentials)
+      # Method 1: Standard AWS Environment Variables
+      # - AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+      # - AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+      # - AWS_REGION=us-east-1
+      
+      # Method 2: Multiple Credentials (Indexed)
+      # - FILY_AWS_ACCESS_KEY_ID_0=AKIAIOSFODNN7EXAMPLE
+      # - FILY_AWS_SECRET_ACCESS_KEY_0=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+      # - FILY_AWS_REGION_0=us-east-1
+      # - FILY_AWS_ACCESS_KEY_ID_1=AKIAI44QH8DHBEXAMPLE
+      # - FILY_AWS_SECRET_ACCESS_KEY_1=je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY
+      # - FILY_AWS_REGION_1=eu-west-1
+      
+      # Method 3: JSON Format (Advanced)
+      # - FILY_AWS_CREDENTIALS=[{"access_key_id":"AKIAIOSFODNN7EXAMPLE","secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","region":"us-east-1"}]
+      
+      # Encryption Configuration (Optional)
+      # - FILY_ENCRYPTION_ENABLED=false
+      # - FILY_ENCRYPTION_MASTER_KEY=base64_encoded_32_byte_key
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8333/"]

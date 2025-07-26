@@ -1,0 +1,84 @@
+# Production Docker Compose configuration for Fily
+# This example shows a production-ready setup with multiple AWS credentials
+version: '3.8'
+
+services:
+  fily:
+    build: .
+    container_name: fily-s3-prod
+    ports:
+      - "8333:8333"
+    volumes:
+      # Mount persistent storage for S3 objects
+      - fily-data:/app/data
+    environment:
+      # Core Configuration
+      - FILY_LOCATION=/app/data
+      - FILY_PORT=8333
+      - FILY_ADDRESS=0.0.0.0
+      - FILY_LOG_LEVEL=warn
+      
+      # Multiple AWS Credentials for Multi-tenant Setup
+      - FILY_AWS_ACCESS_KEY_ID_0=${TENANT_1_ACCESS_KEY}
+      - FILY_AWS_SECRET_ACCESS_KEY_0=${TENANT_1_SECRET_KEY}
+      - FILY_AWS_REGION_0=${TENANT_1_REGION:-us-east-1}
+      
+      - FILY_AWS_ACCESS_KEY_ID_1=${TENANT_2_ACCESS_KEY}
+      - FILY_AWS_SECRET_ACCESS_KEY_1=${TENANT_2_SECRET_KEY}
+      - FILY_AWS_REGION_1=${TENANT_2_REGION:-eu-west-1}
+      
+      # Encryption Configuration
+      - FILY_ENCRYPTION_ENABLED=${ENCRYPTION_ENABLED:-true}
+      - FILY_ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+
+  # Optional: Reverse proxy with SSL termination
+  nginx:
+    image: nginx:alpine
+    container_name: fily-nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - fily
+    restart: unless-stopped
+
+volumes:
+  fily-data:
+    driver: local
+    driver_opts:
+      # For production, consider using a more robust storage driver
+      type: none
+      o: bind
+      device: /opt/fily/data
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

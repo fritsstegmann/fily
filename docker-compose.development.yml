@@ -1,0 +1,52 @@
+# Development Docker Compose configuration for Fily
+# This setup is optimized for local development and testing
+version: '3.8'
+
+services:
+  fily:
+    build: 
+      context: .
+      target: builder  # Use the builder stage for development
+    container_name: fily-s3-dev
+    ports:
+      - "8333:8333"
+    volumes:
+      # Mount source code for development (if needed)
+      - ./src:/app/src:ro
+      # Mount persistent storage for S3 objects
+      - fily-dev-data:/app/data
+      # Mount .env file for easy credential management
+      - ./.env:/app/.env:ro
+    environment:
+      # Core Configuration - Development settings
+      - FILY_LOCATION=/app/data
+      - FILY_PORT=8333
+      - FILY_ADDRESS=0.0.0.0
+      - FILY_LOG_LEVEL=debug
+      
+      # Development AWS Credentials (use .env file instead)
+      # Example credentials for testing (replace with real ones)
+      - AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+      - AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+      - AWS_REGION=us-east-1
+      
+      # Disable encryption for development
+      - FILY_ENCRYPTION_ENABLED=false
+    restart: "no"  # Don't restart automatically in development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Development-friendly settings
+    stdin_open: true
+    tty: true
+
+volumes:
+  fily-dev-data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

@@ -53,43 +53,84 @@ cargo build --release
 
 ## Configuration
 
-Fily uses a `config.toml` file in the project root for configuration. Copy the example configuration and customize it:
+Fily uses environment variables for configuration, providing flexibility for different deployment scenarios. Configuration is loaded automatically from environment variables with sensible defaults.
+
+### Quick Start
+
+Copy the example environment file and customize it:
 
 ```bash
-cp config-example.toml config.toml
-# Edit config.toml with your settings
+cp .env.example .env
+# Edit .env with your settings
 ```
 
-```toml
-[fily]
-location = "./data"           # Local storage directory
-port = "8333"                # Server port
-address = "0.0.0.0"          # Bind address
+### Environment Variables
 
-# AWS credentials for authentication
-aws_access_key_id = "your_access_key"
-aws_secret_access_key = "your_secret_key"
-aws_region = "us-east-1"
+#### Core Configuration
+- **FILY_LOCATION**: Storage directory (default: `./data`)
+- **FILY_PORT**: Server port (default: `8333`)
+- **FILY_ADDRESS**: Bind address (default: `0.0.0.0`)
+- **FILY_LOG_LEVEL**: Log level (default: `info`)
 
-# Optional encryption configuration
-[encryption]
-enabled = false
-master_key = "base64_encoded_32_byte_key"
+#### AWS Credentials (Multiple Methods Supported)
+
+**Method 1 - Standard AWS Variables:**
+```bash
+export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
+export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+export AWS_REGION="us-east-1"
 ```
 
-### Configuration Options
+**Method 2 - Multiple Credentials (Indexed):**
+```bash
+export FILY_AWS_ACCESS_KEY_ID_0="AKIAIOSFODNN7EXAMPLE"
+export FILY_AWS_SECRET_ACCESS_KEY_0="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+export FILY_AWS_REGION_0="us-east-1"
 
-#### [fily] Section
-- **location**: Directory where files will be stored locally (default: "./data")
-- **port**: Port number for the server to listen on (default: "8333")
-- **address**: IP address to bind to (default: "0.0.0.0")
-- **aws_access_key_id**: AWS access key ID for authentication
-- **aws_secret_access_key**: AWS secret access key for authentication
-- **aws_region**: AWS region for signature validation (default: "us-east-1")
+export FILY_AWS_ACCESS_KEY_ID_1="AKIAI44QH8DHBEXAMPLE"
+export FILY_AWS_SECRET_ACCESS_KEY_1="je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY"
+export FILY_AWS_REGION_1="eu-west-1"
+```
 
-#### [encryption] Section (Optional)
-- **enabled**: Enable/disable XChaCha20-Poly1305 encryption for stored objects
-- **master_key**: Base64-encoded 32-byte master key for encryption
+**Method 3 - JSON Format (Advanced):**
+```bash
+export FILY_AWS_CREDENTIALS='[{"access_key_id":"AKIAIOSFODNN7EXAMPLE","secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","region":"us-east-1"}]'
+```
+
+#### Encryption Configuration (Optional)
+```bash
+export FILY_ENCRYPTION_ENABLED=true
+export FILY_ENCRYPTION_MASTER_KEY="base64_encoded_32_byte_key"
+```
+
+Generate a master key with: `openssl rand -base64 32`
+
+### Configuration Help
+
+Run `fily --help` to see all available configuration options and examples.
+
+### Multiple AWS Credentials
+
+Fily supports multiple AWS credentials, allowing you to authenticate different clients with different access keys. This is useful for:
+
+- **Multi-tenant scenarios**: Different access keys for different customers
+- **Role separation**: Different keys for read-only vs read-write access  
+- **Cross-region access**: Different keys for different AWS regions
+- **Development/testing**: Separate keys for different environments
+
+Priority order for credential loading:
+1. JSON format (`FILY_AWS_CREDENTIALS`)
+2. Indexed variables (`FILY_AWS_ACCESS_KEY_ID_0`, etc.)
+3. Standard AWS variables (`AWS_ACCESS_KEY_ID`, etc.)
+4. Fily-specific variables (`FILY_AWS_ACCESS_KEY_ID`, etc.)
+
+### Configuration Validation
+
+Fily validates all configuration on startup:
+- Port numbers must be valid (1-65535)
+- Log levels must be valid (trace, debug, info, warn, error)
+- AWS credentials must be properly formatted (20-char access keys, 40-char secrets)
+- Encryption keys must be valid base64 and exactly 32 bytes when decoded
 
 ## Running
 
@@ -105,6 +146,34 @@ cargo run
 cargo build --release
 ./target/release/fily
 ```
+
+### Docker
+
+**Quick Start:**
+```bash
+docker run -d \
+  --name fily-s3 \
+  -p 8333:8333 \
+  -v fily-data:/app/data \
+  -e AWS_ACCESS_KEY_ID="your_access_key" \
+  -e AWS_SECRET_ACCESS_KEY="your_secret_key" \
+  fily:latest
+```
+
+**Docker Compose:**
+```bash
+# Copy and customize environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# Development
+docker-compose -f docker-compose.development.yml up -d
+
+# Production  
+docker-compose -f docker-compose.production.yml up -d
+```
+
+See [docs/DOCKER.md](docs/DOCKER.md) for comprehensive Docker deployment guide.
 
 The server will start and listen on the configured address and port (default: `0.0.0.0:8333`).
 
@@ -202,8 +271,9 @@ cargo audit
 
 ```
 src/
-├── main.rs                    # Entry point and configuration
-├── fily.rs                   # Main server setup and routing
+├── main.rs                    # Entry point and environment-based configuration
+├── config.rs                  # Environment variable configuration loader
+├── fily.rs                   # Main server setup and routing with multi-credential support
 └── fily/
     ├── auth.rs               # Secure AWS SigV4 authentication with timing attack protection
     ├── auth_middleware.rs    # Authentication middleware
@@ -228,13 +298,22 @@ tests/
 ├── etag_tests.rs             # ETag generation tests
 ├── middleware_tests.rs       # Middleware tests
 ├── error_handling_tests.rs   # Error handling tests
-└── presigned_url_tests.rs    # Pre-signed URL tests
+├── presigned_url_tests.rs    # Pre-signed URL tests
+└── metadata_security_tests.rs # Metadata path injection security tests
 
 docs/
 ├── SECURITY_AUDIT.md         # Security vulnerability assessment
+├── DOCKER.md                 # Docker deployment guide
 ├── PERFORMANCE_REPORT.md     # Performance analysis and optimization
 ├── S3_COMPATIBILITY_GAP_ANALYSIS.md  # S3 API compatibility analysis
 └── S3_VERSIONING_DESIGN.md   # S3 versioning implementation design
+
+# Docker Configuration
+├── Dockerfile                # Multi-stage Docker build
+├── docker-compose.yml        # Basic Docker Compose setup
+├── docker-compose.development.yml  # Development environment
+├── docker-compose.production.yml   # Production environment
+└── .env.example              # Environment variable examples
 ```
 
 ## Error Handling
